@@ -19,37 +19,4 @@ rustflags = ["-C", "link-arg=-Wl,--allow-multiple-definition"]
 [build]
 rustflags = ["-C", "target-feature=+fp16,+fhm"]
 
-[source.crates-io]
-replace-with = "vendored-sources"
-
-[source."git+https://github.com/Kree0/cpal.git?branch=master"]
-git = "https://github.com/Kree0/cpal.git"
-branch = "master"
-replace-with = "vendored-sources"
-
-[source."git+https://github.com/Neptune650/knf-rs.git"]
-git = "https://github.com/Neptune650/knf-rs.git"
-replace-with = "vendored-sources"
-
-[source."git+https://github.com/king-jingxiang/hf-hub"]
-git = "https://github.com/king-jingxiang/hf-hub"
-replace-with = "vendored-sources"
-
-[source."git+https://github.com/louis030195/rusty-tesseract.git?branch=main"]
-git = "https://github.com/louis030195/rusty-tesseract.git"
-branch = "main"
-replace-with = "vendored-sources"
-
-[source."git+https://github.com/nathanbabcock/ffmpeg-sidecar?branch=main"]
-git = "https://github.com/nathanbabcock/ffmpeg-sidecar"
-branch = "main"
-replace-with = "vendored-sources"
-
-[source."git+https://github.com/yury/cidre.git?rev=f05c428"]
-git = "https://github.com/yury/cidre.git"
-rev = "f05c428"
-replace-with = "vendored-sources"
-
-[source.vendored-sources]
-directory = "vendor"
 
