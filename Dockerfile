@@ -1,6 +1,6 @@
 # FROM python:3.11 as builder
 # FROM python:3.11-slim as builder
-FROM ubuntu:25.04
+FROM ubuntu:25.04 as builder
 
 # 指定构建过程中的工作目录
 WORKDIR /app
