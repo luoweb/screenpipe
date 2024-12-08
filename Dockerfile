@@ -7,6 +7,7 @@ WORKDIR /app
 
 RUN apt-get update -y && \
     apt-get install --no-install-recommends -y g++ ffmpeg tesseract-ocr cmake libavformat-dev libavfilter-dev libavdevice-dev libssl-dev libtesseract-dev libxdo-dev libsdl2-dev libclang-dev libxtst-dev  && \
+    apt-get install --no-install-recommends -y curl git && \
     rm -rf /var/lib/apt/lists/* 
 
 # Install rust
