@@ -9,7 +9,7 @@ WORKDIR /app
 # Install gcc bun nodejs
 RUN apt-get update -y && \
     apt-get install --no-install-recommends -y g++ ffmpeg tesseract-ocr cmake make libavformat-dev libavfilter-dev libavdevice-dev libasound2-dev libssl-dev libtesseract-dev tesseract-ocr libxdo-dev libsdl2-dev libclang-dev libxtst-dev libappindicator3-dev && \
-    apt-get install --no-install-recommends -y curl git openssl pkg-config apt-transport-https ca-certificates  && \
+    apt-get install --no-install-recommends -y curl git unzip openssl pkg-config apt-transport-https ca-certificates  && \
     curl -fsSL https://bun.sh/install | bash && \
     rm -rf /var/lib/apt/lists/* 
 
