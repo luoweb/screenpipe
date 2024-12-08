@@ -243,6 +243,9 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y \
             gcc-aarch64-linux-gnu \
+            g++-aarch64-linux-gnu \
+            aarch64-linux-unknown-gcc \
+            aarch64-linux-unknown-g++ \
             build-essential \
             binutils-aarch64-linux-gnu gcc-aarch64-linux-gnu g++-aarch64-linux-gnu \
             
