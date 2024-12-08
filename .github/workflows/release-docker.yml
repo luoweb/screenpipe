@@ -8,15 +8,15 @@ on:
     types: [published]
   workflow_dispatch:
     inputs:
-        task_name:
-            description: 'Tag name of the image to be pushed.'
-            type: choice
-            required: true
-            default: 'sync'
-            options:
-                - 'build'
-                - 'sync'
-                - 'test'
+      task_name:
+        description: 'Tag name of the image to be pushed.'
+        type: choice
+        required: true
+        default: 'sync'
+        options:
+            - 'build'
+            - 'sync'
+            - 'test'
 env:
   DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
   DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
@@ -66,7 +66,7 @@ jobs:
           push: true
           tags: |
             ${{ env.DOCKER_REGISTRY }}/${{ env.GUIAGENT_NAME }}-all:latest
-            ${{ env.DOCKER_REGISTRY }}/${{ env.GUIAGENT_NAME }}-all:${{ steps.date.outputs.date }}
-            ${{ env.DOCKER_REGISTRY }}/${{ env.GUIAGENT_NAME }}-all:${{ github.event.inputs.task_name }}
+            ${{ env.DOCKER_REGISTRY }}/${{ env.GUIAGENT_NAME }}-all:build${{ steps.date.outputs.date }}
+            ${{ env.DOCKER_REGISTRY }}/${{ env.GUIAGENT_NAME }}-all:build${{ github.event.inputs.task_name }}
           labels: ${{ steps.date.outputs.date }}
 
