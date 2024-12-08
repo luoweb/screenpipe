@@ -7,12 +7,12 @@ WORKDIR /app
 
 RUN apt-get update -y && \
     apt-get install --no-install-recommends -y g++ ffmpeg tesseract-ocr cmake libavformat-dev libavfilter-dev libavdevice-dev libssl-dev libtesseract-dev libxdo-dev libsdl2-dev libclang-dev libxtst-dev  && \
-    apt-get install --no-install-recommends -y curl git && \
+    apt-get install --no-install-recommends -y curl git openssl pkg-config apt-transport-https ca-certificates && \
     rm -rf /var/lib/apt/lists/* 
 
 # Install rust
 RUN apt-get update -qq && \
-    curl https://sh.rustup.rs -sSf | sh -s -- -y --no-modify-path --profile minimal && \
+    curl -k https://sh.rustup.rs -sSf | sh -s -- -y --no-modify-path --profile minimal && \
     ln -s $HOME/.cargo/bin/cargo /usr/local/bin && \
     ln -s $HOME/.cargo/bin/rustup /usr/local/bin && \
     rustup install 1.83.0
