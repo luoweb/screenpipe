@@ -247,9 +247,7 @@ jobs:
             gcc-aarch64-linux-gnu \
             g++-aarch64-linux-gnu \
             build-essential \
-            binutils-aarch64-linux-gnu gcc-aarch64-linux-gnu g++-aarch64-linux-gnu \
-            libssl-dev:arm64
-            
+            binutils-aarch64-linux-gnu gcc-aarch64-linux-gnu g++-aarch64-linux-gnu            
       - name: Install LLVM and Clang
         uses: KyleMayes/install-llvm-action@v1
         with:

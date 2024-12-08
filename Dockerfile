@@ -6,9 +6,11 @@ FROM ubuntu:24.04 as builder
 # 指定构建过程中的工作目录
 WORKDIR /app
 
+# Install gcc bun nodejs
 RUN apt-get update -y && \
     apt-get install --no-install-recommends -y g++ ffmpeg tesseract-ocr cmake make libavformat-dev libavfilter-dev libavdevice-dev libasound2-dev libssl-dev libtesseract-dev tesseract-ocr libxdo-dev libsdl2-dev libclang-dev libxtst-dev libappindicator3-dev && \
     apt-get install --no-install-recommends -y curl git openssl pkg-config apt-transport-https ca-certificates  && \
+    curl -fsSL https://bun.sh/install | bash && \
     rm -rf /var/lib/apt/lists/* 
 
 # Install rust
@@ -47,9 +49,10 @@ WORKDIR /app
 # COPY --from=builder /app/main /app/index.html /app/
 
 COPY --from=builder /app/ /app/
+COPY --from=builder /root/.cargo /root/.cargo
 # COPY --from=builder /opt/ /opt/
-COPY --from=builder /opt/screenpipe/target/release/screenpipe /app/screenpipe
-COPY --from=builder /opt/screenpipe/target/release/screenpipe /app/screenpipe
+COPY --from=builder /opt/screenpipe/target/release/ /opt/screenpipe/target/release/
+RUN install /opt/screenpipe/target/release/screenpipe /usr/local/bin
 
 EXPOSE 8000
  
