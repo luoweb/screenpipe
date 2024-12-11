@@ -1,7 +1,7 @@
 # FROM python:3.11 as builder
 # FROM python:3.11-slim as builder
 # FROM ubuntu:25.04 as builder
-FROM ubuntu:24.04 as builder
+FROM ubuntu:20.04
 
 # 指定构建过程中的工作目录
 WORKDIR /app
@@ -39,7 +39,7 @@ COPY . /app/
 # FROM python:3.11
 # FROM python:3.11-slim
 # FROM ubuntu:25.04
-FROM ubuntu:24.04
+# FROM ubuntu:24.04
 # 引入存了镜像加速构建
 
 # 指定运行时的工作目录
@@ -48,11 +48,11 @@ WORKDIR /app
 # 将构建产物/app/main拷贝到运行时的工作目录中
 # COPY --from=builder /app/main /app/index.html /app/
 
-COPY --from=builder /app/ /app/
-COPY --from=builder /root/.cargo /root/.cargo
+# COPY --from=builder /app/ /app/
+# COPY --from=builder /root/.cargo /root/.cargo
 # COPY --from=builder /opt/ /opt/
-COPY --from=builder /opt/screenpipe/target/release/ /opt/screenpipe/target/release/
-RUN install /opt/screenpipe/target/release/screenpipe /usr/local/bin
+# COPY --from=builder /opt/screenpipe/target/release/ /opt/screenpipe/target/release/
+# RUN install /opt/screenpipe/target/release/screenpipe /usr/local/bin
 
 EXPOSE 8000
  
