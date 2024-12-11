@@ -1,7 +1,8 @@
 # FROM python:3.11 as builder
 # FROM python:3.11-slim as builder
 # FROM ubuntu:25.04 as builder
-FROM ubuntu:20.04
+FROM ubuntu:22.04
+# FROM ubuntu:20.04
 
 ENV TZ Asia/Shanghai
 # 指定构建过程中的工作目录
