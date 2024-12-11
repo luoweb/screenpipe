@@ -3,13 +3,14 @@
 # FROM ubuntu:25.04 as builder
 FROM ubuntu:20.04
 
+ENV TZ Asia/Shanghai
 # 指定构建过程中的工作目录
 WORKDIR /app
 
 # Install gcc bun nodejs
-RUN apt-get update -y && \
-    apt-get install --no-install-recommends -y g++ ffmpeg tesseract-ocr cmake make libavformat-dev libavfilter-dev libavdevice-dev libasound2-dev libssl-dev libtesseract-dev tesseract-ocr libxdo-dev libsdl2-dev libclang-dev libxtst-dev libappindicator3-dev && \
-    apt-get install --no-install-recommends -y curl git unzip openssl pkg-config apt-transport-https ca-certificates  && \
+RUN DEBIAN_FRONTEND=noninteractive apt-get update -y && \
+    DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends -y g++ openssl pkg-config tzdata apt-transport-https ca-certificates cmake make curl git unzip  && \
+    apt-get install --no-install-recommends -y ffmpeg tesseract-ocr libavformat-dev libavfilter-dev libavdevice-dev libasound2-dev libssl-dev libtesseract-dev tesseract-ocr libxdo-dev libsdl2-dev libclang-dev libxtst-dev libappindicator3-dev && \
     curl -fsSL https://bun.sh/install | bash && \
     rm -rf /var/lib/apt/lists/* 
 
