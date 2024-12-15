@@ -135,6 +135,61 @@ pub fn show_timeline(app_handle: tauri::AppHandle<tauri::Wry>) {
         .unwrap();
     }
 }
+#[tauri::command]
+pub fn show_meetings(app_handle: tauri::AppHandle<tauri::Wry>) {
+    if let Some(window) = app_handle.get_webview_window("meetings") {
+        #[cfg(target_os = "macos")]
+        let _ = app_handle.set_activation_policy(tauri::ActivationPolicy::Accessory);
+
+        // let _ = window.set_visible_on_all_workspaces(true);
+        // let _ = window.set_always_on_top(true);
+        let _ = window.set_decorations(true);
+        let _ = window.show();
+        let _ = window.set_focus();
+    } else {
+        let _window = tauri::WebviewWindowBuilder::new(
+            &app_handle,
+            "meetings",
+            tauri::WebviewUrl::App("meetings.html".into()),
+        )
+        .title("meetings")
+        .decorations(true)
+        .transparent(true)
+        // .always_on_top(true)
+        // .visible_on_all_workspaces(true) // Added this
+        .center()
+        .build()
+        .unwrap();
+    }
+}
+
+#[tauri::command]
+pub fn show_identify_speakers(app_handle: tauri::AppHandle<tauri::Wry>) {
+    if let Some(window) = app_handle.get_webview_window("identify-speakers") {
+        #[cfg(target_os = "macos")]
+        let _ = app_handle.set_activation_policy(tauri::ActivationPolicy::Accessory);
+
+        // let _ = window.set_visible_on_all_workspaces(true);
+        // let _ = window.set_always_on_top(true);
+        let _ = window.set_decorations(true);
+        let _ = window.show();
+        let _ = window.set_focus();
+    } else {
+        let _window = tauri::WebviewWindowBuilder::new(
+            &app_handle,
+            "identify-speakers",
+            tauri::WebviewUrl::App("identify-speakers.html".into()),
+        )
+        .title("identify-speakers")
+        .decorations(true)
+        .transparent(true)
+        // .always_on_top(true)
+        // .visible_on_all_workspaces(true) // Added this
+        .center()
+        .build()
+        .unwrap();
+    }
+}
 
 const DEFAULT_SHORTCUT: &str = "Super+Alt+S";
 
@@ -205,10 +260,6 @@ pub fn update_show_screenpipe_shortcut(
     Ok(())
 }
 
-
-
-
-
 // Add these new structs
 #[derive(Debug, Serialize)]
 pub struct AuthStatus {
@@ -219,9 +270,9 @@ pub struct AuthStatus {
 // Command to open the auth window
 #[tauri::command]
 pub async fn open_auth_window(app_handle: tauri::AppHandle<tauri::Wry>) -> Result<(), String> {
-    #[cfg(debug_assertions)]
-    let auth_url = "http://localhost:3001/login";
-    #[cfg(not(debug_assertions))]
+    // #[cfg(debug_assertions)]
+    // let auth_url = "http://localhost:3001/login";
+    // #[cfg(not(debug_assertions))]
     let auth_url = "https://screenpi.pe/login";
 
     // If window exists, try to close it and wait a bit
@@ -236,8 +287,9 @@ pub async fn open_auth_window(app_handle: tauri::AppHandle<tauri::Wry>) -> Resul
         "auth",
         tauri::WebviewUrl::External(auth_url.parse().unwrap()),
     )
-    .title("screenpipe auth")
+    .title("screenpipe login")
     .center()
+    .inner_size(800.0, 600.0)
     .build()
     .map_err(|e| format!("failed to open auth window: {}", e))?;
 
@@ -253,13 +305,6 @@ pub async fn open_auth_window(app_handle: tauri::AppHandle<tauri::Wry>) -> Resul
 
     Ok(())
 }
-
-
-
-
-
-
-
 
 #[tauri::command]
 pub fn show_search(app_handle: tauri::AppHandle<tauri::Wry>) {
@@ -283,5 +328,30 @@ pub fn show_search(app_handle: tauri::AppHandle<tauri::Wry>) {
         .build()
         .unwrap();
     }
+}
+
+
+#[tauri::command]
+pub async fn open_pipe_window(app_handle: tauri::AppHandle<tauri::Wry>, port: u16, title: String) -> Result<(), String> {
+    let window_label = format!("pipe-{}", port);
+    
+    // Close existing window if it exists
+    if let Some(existing_window) = app_handle.get_webview_window(&window_label) {
+        let _ = existing_window.close();
+        // Give it a moment to properly close
+        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+    }
+
+    let _window = tauri::WebviewWindowBuilder::new(
+        &app_handle,
+        window_label,
+        tauri::WebviewUrl::External(format!("http://localhost:{}", port).parse().unwrap())
+    )
+    .title(title)
+    .inner_size(800.0, 600.0)
+    .build()
+    .map_err(|e| e.to_string())?;
+    
+    Ok(())
 }
 

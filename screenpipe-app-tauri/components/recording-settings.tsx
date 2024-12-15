@@ -23,6 +23,7 @@ import {
   Folder,
   AppWindowMac,
   X,
+  EyeOff,
 } from "lucide-react";
 import { cn, getCliPath } from "@/lib/utils";
 import {
@@ -52,17 +53,6 @@ import {
 import { Switch } from "./ui/switch";
 import { Input } from "./ui/input";
 import { Slider } from "./ui/slider";
-import { IconCode } from "./ui/icons";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "./ui/dialog";
-import { CodeBlock } from "./ui/codeblock";
-import { useCopyToClipboard } from "@/lib/hooks/use-copy-to-clipboard";
 import { platform } from "@tauri-apps/plugin-os";
 import posthog from "posthog-js";
 import { trace } from "@opentelemetry/api";
@@ -73,6 +63,13 @@ import { exists } from "@tauri-apps/plugin-fs";
 import { Command as ShellCommand } from "@tauri-apps/plugin-shell";
 import { CliCommandDialog } from "./cli-command-dialog";
 import { ToastAction } from "@/components/ui/toast";
+import { useUser } from "@/lib/hooks/use-user";
+import { open as openUrl } from "@tauri-apps/plugin-shell";
+type PermissionsStatus = {
+  screenRecording: string;
+  microphone: string;
+  accessibility: string;
+};
 
 interface AudioDevice {
   name: string;
@@ -117,10 +114,13 @@ export function RecordingSettings({
   const isDisabled = health?.status_code === 500;
   const [isMacOS, setIsMacOS] = useState(false);
   const [isSetupRunning, setIsSetupRunning] = useState(false);
+  const [showApiKey, setShowApiKey] = useState(false);
+  const { user } = useUser();
+  const { credits } = user || {};
 
   useEffect(() => {
     const checkPlatform = async () => {
-      const currentPlatform = await platform();
+      const currentPlatform = platform();
       setIsMacOS(currentPlatform === "macos");
     };
     checkPlatform();
@@ -223,7 +223,6 @@ export function RecordingSettings({
         monitorIds: localSettings.monitorIds,
         audioDevices: localSettings.audioDevices,
         usePiiRemoval: localSettings.usePiiRemoval,
-        restartInterval: localSettings.restartInterval,
         disableAudio: localSettings.disableAudio,
         ignoredWindows: localSettings.ignoredWindows,
         includedWindows: localSettings.includedWindows,
@@ -238,6 +237,7 @@ export function RecordingSettings({
         enableFrameCache: localSettings.enableFrameCache,
         enableUiMonitoring: localSettings.enableUiMonitoring,
         dataDir: localSettings.dataDir,
+        port: localSettings.port,
       };
       console.log("Settings to update:", settingsToUpdate);
       await updateSettings(settingsToUpdate);
@@ -337,7 +337,19 @@ export function RecordingSettings({
   };
 
   const handleAudioTranscriptionModelChange = (value: string) => {
-    setLocalSettings({ ...localSettings, audioTranscriptionEngine: value });
+    if (value === "screenpipe-cloud" && !credits?.amount) {
+      openUrl("https://buy.stripe.com/5kA6p79qefweacg5kJ");
+      return;
+    }
+
+    if (value === "screenpipe-cloud") {
+      setLocalSettings({
+        ...localSettings,
+        audioTranscriptionEngine: value,
+      });
+    } else {
+      setLocalSettings({ ...localSettings, audioTranscriptionEngine: value });
+    }
   };
 
   const handleOcrModelChange = (value: string) => {
@@ -370,10 +382,6 @@ export function RecordingSettings({
 
   const handlePiiRemovalChange = (checked: boolean) => {
     setLocalSettings({ ...localSettings, usePiiRemoval: checked });
-  };
-
-  const handleRestartIntervalChange = (value: number[]) => {
-    setLocalSettings({ ...localSettings, restartInterval: value[0] });
   };
 
   const handleDisableAudioChange = (checked: boolean) => {
@@ -413,12 +421,6 @@ export function RecordingSettings({
     const currentPlatform = platform();
     return (
       <>
-        {/* <SelectItem value="unstructured">
-          <div className="flex items-center justify-between w-full space-x-2">
-            <span>unstructured</span>
-            <Badge variant="secondary">cloud</Badge>
-          </div>
-        </SelectItem> */}
         {currentPlatform === "linux" && (
           <SelectItem value="tesseract">tesseract</SelectItem>
         )}
@@ -593,8 +595,10 @@ export function RecordingSettings({
     try {
       if (checked) {
         // Check accessibility permissions first
-        const hasPermission = await invoke("check_accessibility_permissions");
-        if (!hasPermission) {
+        const perms = await invoke<PermissionsStatus>("do_permissions_check", {
+          initialCheck: false,
+        });
+        if (!perms.accessibility) {
           toast({
             title: "accessibility permission required",
             description:
@@ -679,12 +683,25 @@ export function RecordingSettings({
               </Label>
               <Select
                 onValueChange={handleAudioTranscriptionModelChange}
-                defaultValue={localSettings.audioTranscriptionEngine}
+                value={localSettings.audioTranscriptionEngine}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="select audio transcription engine" />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="screenpipe-cloud">
+                    <div className="flex items-center justify-between w-full space-x-2">
+                      <span>screenpipe cloud</span>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="secondary">cloud</Badge>
+                        {!credits?.amount && (
+                          <Badge variant="outline" className="text-xs">
+                            get credits
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                  </SelectItem>
                   <SelectItem value="deepgram">
                     <div className="flex items-center justify-between w-full space-x-2">
                       <span>deepgram</span>
@@ -698,6 +715,64 @@ export function RecordingSettings({
                   </SelectItem>
                 </SelectContent>
               </Select>
+
+              {localSettings.audioTranscriptionEngine === "deepgram" && (
+                <div className="mt-2">
+                  <div className="flex items-center gap-4">
+                    <Label
+                      htmlFor="deepgramApiKey"
+                      className="min-w-[80px] text-right"
+                    >
+                      api key
+                    </Label>
+                    <div className="flex-grow relative">
+                      <Input
+                        id="deepgramApiKey"
+                        type={showApiKey ? "text" : "password"}
+                        value={localSettings.deepgramApiKey}
+                        onChange={(e) => {
+                          const newValue = e.target.value;
+                          setLocalSettings({
+                            ...localSettings,
+                            deepgramApiKey: newValue,
+                          });
+                          updateSettings({ deepgramApiKey: newValue });
+                        }}
+                        className="pr-10 w-full"
+                        placeholder="enter your deepgram api key"
+                        autoCorrect="off"
+                        autoCapitalize="off"
+                        autoComplete="off"
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="absolute right-0 top-0 h-full"
+                        onClick={() => setShowApiKey(!showApiKey)}
+                      >
+                        {showApiKey ? (
+                          <EyeOff className="h-4 w-4" />
+                        ) : (
+                          <Eye className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                  <p className="mt-2 text-sm text-center text-muted-foreground">
+                    don&apos;t have an api key? get one from{" "}
+                    <a
+                      href="https://console.deepgram.com/"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary hover:underline"
+                    >
+                      deepgram&apos;s website
+                    </a>{" "}
+                    or use screenpipe cloud
+                  </p>
+                </div>
+              )}
             </div>
 
             <div className="flex flex-col space-y-2">
@@ -998,48 +1073,6 @@ export function RecordingSettings({
                     </Tooltip>
                   </TooltipProvider>
                 </Label>
-              </div>
-            </div>
-            <div className="flex flex-col space-y-2">
-              <Label
-                htmlFor="restartInterval"
-                className="flex items-center space-x-2"
-              >
-                <span>restart interval (minutes)</span>
-                <Badge variant="outline" className="ml-2">
-                  experimental
-                </Badge>
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger>
-                      <HelpCircle className="h-4 w-4 cursor-default" />
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>
-                        (not recommended) set how often the recording process
-                        should restart.
-                        <br />
-                        30 minutes is the minimum interval.
-                        <br />
-                        this can help mitigate potential issues.
-                      </p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              </Label>
-              <div className="flex items-center space-x-4">
-                <Slider
-                  id="restartInterval"
-                  min={0}
-                  max={1440} // 24 hours
-                  step={30}
-                  value={[localSettings.restartInterval]}
-                  onValueChange={handleRestartIntervalChange}
-                  className="flex-grow"
-                />
-                <span className="w-16 text-right">
-                  {localSettings.restartInterval} min
-                </span>
               </div>
             </div>
 
@@ -1411,59 +1444,6 @@ export function RecordingSettings({
                 </TooltipProvider>
               </Label>
             </div>
-            {/* {isMacOS && (
-              <div className="flex items-center space-x-2">
-                <Switch
-                  id="enable-beta-toggle"
-                  checked={localSettings.enableBeta}
-                  onCheckedChange={handleEnableBetaToggle}
-                />
-                <Label
-                  htmlFor="enable-beta-toggle"
-                  className="flex items-center space-x-2"
-                >
-                  <span>enable beta features</span>
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger>
-                        <HelpCircle className="h-4 w-4 cursor-default" />
-                      </TooltipTrigger>
-                      <TooltipContent side="right">
-                        <p>
-                          ⚠️ uses screenpipe cloud and may break screenpipe ⚠️
-                          <br />
-                          • we provide free ChatGPT credits
-                          <br />
-                          • may have privacy implications read our data privacy
-                          policy at
-                          <br />
-                          <a
-                            href="https://screenpi.pe/privacy"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-primary hover:underline"
-                          >
-                            https://screenpi.pe/privacy
-                          </a>
-                          <br />
-                          enables experimental features like{" "}
-                          <a
-                            href="https://x.com/m13v_/status/1843868614165967343"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-primary underline"
-                          >
-                            double slash
-                          </a>
-                          <br />
-                          (only tested on US or German qwertz keyboards)
-                        </p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                </Label>
-              </div>
-            )} */}
             <div className="flex flex-col space-y-2">
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-2">
@@ -1530,6 +1510,46 @@ export function RecordingSettings({
                 </Label>
               </div>
             )}
+            {/* <div className="flex flex-col space-y-2">
+              <Label htmlFor="port" className="flex items-center space-x-2">
+                <span>server port</span>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger>
+                      <HelpCircle className="h-4 w-4 cursor-default" />
+                    </TooltipTrigger>
+                    <TooltipContent side="right">
+                      <p>
+                        port number for the screenpipe server.
+                        <br />
+                        default is 3030. change only if you have port conflicts.
+                        <br />
+                        requires restart to take effect.
+                      </p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </Label>
+              <div className="flex items-center space-x-4">
+                <Input
+                  id="port"
+                  type="number"
+                  min={1024}
+                  max={65535}
+                  value={localSettings.port}
+                  onChange={(e) => {
+                    const port = parseInt(e.target.value);
+                    if (!isNaN(port) && port >= 1024 && port <= 65535) {
+                      setLocalSettings({
+                        ...localSettings,
+                        port: port,
+                      });
+                    }
+                  }}
+                  className="w-32"
+                />
+              </div>
+            </div> */}
           </CardContent>
         </Card>
       </div>

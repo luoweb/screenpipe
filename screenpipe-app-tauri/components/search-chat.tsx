@@ -34,6 +34,8 @@ import {
   Clock,
   Check,
   Plus,
+  SpeechIcon,
+  ChevronsUpDown,
 } from "lucide-react";
 import { useToast } from "./ui/use-toast";
 import posthog from "posthog-js";
@@ -71,12 +73,22 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { IconCode } from "@/components/ui/icons";
 import { CodeBlock } from "./ui/codeblock";
 import { SqlAutocompleteInput } from "./sql-autocomplete-input";
-import { encode, removeDuplicateSelections } from "@/lib/utils";
+import { cn, encode, removeDuplicateSelections } from "@/lib/utils";
 import { ExampleSearch, ExampleSearchCards } from "./example-search-cards";
 import { useDebounce } from "@/lib/hooks/use-debounce";
 import { useHealthCheck } from "@/lib/hooks/use-health-check";
 import { SearchHistory } from "@/lib/types/history";
 import { platform } from "@tauri-apps/plugin-os";
+import {
+  CommandInput,
+  CommandList,
+  CommandEmpty,
+  CommandGroup,
+  CommandItem,
+  Command,
+} from "./ui/command";
+import { Speaker } from "@/lib/types";
+import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
 
 interface SearchChatProps {
   currentSearchId: string | null;
@@ -224,7 +236,11 @@ export function SearchChat({
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [minLength, setMinLength] = useState(50);
   const [maxLength, setMaxLength] = useState(10000);
-
+  const [speakers, setSpeakers] = useState<Speaker[]>([]);
+  const [selectedSpeakers, setSelectedSpeakers] = useState<{
+    [key: number]: Speaker;
+  }>({});
+  const [openSpeakers, setOpenSpeakers] = useState(false);
   // Chat state
   const [chatMessages, setChatMessages] = useState<Array<Message>>([]);
 
@@ -276,14 +292,69 @@ export function SearchChat({
 
   const [currentPlatform, setCurrentPlatform] = useState<string | null>(null);
 
+  const [speakerSearchQuery, setSpeakerSearchQuery] = useState("");
+
+  useEffect(() => {
+    if (Object.keys(selectedSpeakers).length > 0) {
+      setSelectedTypes({
+        ocr: false,
+        ui: false,
+        audio: true,
+      });
+    }
+  }, [selectedSpeakers]);
+
   useEffect(() => {
     setCurrentPlatform(platform());
   }, []);
+
+  const handleSpeakerChange = (speaker: Speaker) => {
+    setSelectedSpeakers((prev) => {
+      const newSpeakers = { ...prev, [speaker.id]: speaker };
+
+      if (prev[speaker.id]) {
+        delete newSpeakers[speaker.id];
+      }
+
+      return newSpeakers;
+    });
+  };
+
+  useEffect(() => {
+    if (isQueryParamsDialogOpen && !speakers.length) {
+      loadSpeakers();
+    }
+  }, [isQueryParamsDialogOpen]);
+
+  useEffect(() => {
+    loadSpeakers();
+  }, [speakerSearchQuery]);
+
+  const loadSpeakers = async () => {
+    try {
+      const getSpeakers = await fetch(
+        `http://localhost:3030/speakers/search?name=${speakerSearchQuery}`
+      );
+      const speakers = await getSpeakers.json();
+      setSpeakers(speakers);
+    } catch (error) {
+      console.error("Error loading speakers:", error);
+      setSpeakers([]);
+    }
+  };
 
   // Update content type when checkboxes change
   const handleContentTypeChange = (type: "ocr" | "audio" | "ui") => {
     const newTypes = { ...selectedTypes, [type]: !selectedTypes[type] };
     setSelectedTypes(newTypes);
+
+    if (Object.keys(selectedSpeakers).length > 0) {
+      setSelectedTypes({
+        ocr: false,
+        ui: false,
+        audio: true,
+      });
+    }
 
     // Convert checkbox state to content type
     if (!newTypes.ocr && !newTypes.audio && !newTypes.ui) {
@@ -669,6 +740,10 @@ export function SearchChat({
       end_time: endDate.toISOString(),
       min_length: overrides.minLength || minLength,
       max_length: maxLength,
+      speaker_ids:
+        Object.keys(selectedSpeakers).length > 0
+          ? Object.keys(selectedSpeakers).length
+          : undefined,
     });
 
     try {
@@ -685,6 +760,10 @@ export function SearchChat({
         include_frames: includeFrames,
         min_length: overrides.minLength || minLength,
         max_length: maxLength,
+        speaker_ids:
+          Object.keys(selectedSpeakers).length > 0
+            ? Object.keys(selectedSpeakers).join(",")
+            : undefined,
       };
 
       const response = await queryScreenpipe(searchParams);
@@ -955,6 +1034,11 @@ export function SearchChat({
                 {new Date(item.content.timestamp).toLocaleString()}{" "}
                 {/* Display local time */}
               </p>
+              {item.type === "Audio" && item.content.speaker?.name && (
+                <p className="text-xs text-gray-400">
+                  {item.content.speaker.name}
+                </p>
+              )}
               {item.type === "OCR" && item.content.app_name && (
                 <div className="flex items-center gap-1">
                   <span className="text-xs text-muted-foreground">app:</span>
@@ -1460,6 +1544,85 @@ export function SearchChat({
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
+          </div>
+          <div className="flex items-center justify-center space-x-2">
+            <Label htmlFor="speakers" className="flex items-center space-x-2">
+              <SpeechIcon className="h-4 w-4" />
+              <span>speakers</span>
+            </Label>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <HelpCircle className="h-4 w-4 text-gray-400 cursor-help" />
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>
+                    select the speakers to include in the search results. this
+                    will only show results from the selected speakers. note:
+                    only audio results can be returned
+                  </p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+            <Popover open={openSpeakers} onOpenChange={setOpenSpeakers}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  role="combobox"
+                  aria-expanded={openSpeakers}
+                  className="w-full justify-between"
+                >
+                  {Object.values(selectedSpeakers).length > 0
+                    ? `${Object.values(selectedSpeakers)
+                        .map((s) => s.name)
+                        .join(", ")}`
+                    : "select speakers"}
+                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-full p-0">
+                <Command>
+                  <CommandInput
+                    placeholder="search speakers..."
+                    value={speakerSearchQuery}
+                    onValueChange={setSpeakerSearchQuery}
+                  />
+                  <CommandList>
+                    <CommandEmpty>no speakers found.</CommandEmpty>
+                    <CommandGroup>
+                      {speakers.map((speaker: Speaker) => (
+                        <CommandItem
+                          key={speaker.id}
+                          value={speaker.name}
+                          onSelect={() => handleSpeakerChange(speaker)}
+                        >
+                          <div className="flex items-center">
+                            <Check
+                              className={cn(
+                                "mr-2 h-4 w-4",
+                                selectedSpeakers[speaker.id]
+                                  ? "opacity-100"
+                                  : "opacity-0"
+                              )}
+                            />
+                            <span
+                              style={{
+                                userSelect: "none",
+                                WebkitUserSelect: "none",
+                                MozUserSelect: "none",
+                                msUserSelect: "none",
+                              }}
+                            >
+                              {speaker.name}
+                            </span>
+                          </div>
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
           </div>
           <DialogFooter>
             <Button onClick={() => setIsQueryParamsDialogOpen(false)}>

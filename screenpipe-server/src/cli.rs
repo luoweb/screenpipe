@@ -136,10 +136,6 @@ pub struct Cli {
     #[arg(long)]
     pub debug: bool,
 
-    /// Save text files
-    #[arg(long, default_value_t = false)]
-    pub save_text_files: bool,
-
     /// Audio transcription engine to use.
     /// Deepgram is a very high quality cloud-based transcription service (free of charge on us for now), recommended for high quality audio.
     /// WhisperTiny is a local, lightweight transcription model, recommended for high data privacy.
@@ -239,6 +235,10 @@ pub struct Cli {
     #[arg(long, default_value_t = false)]
     pub enable_frame_cache: bool,
 
+    /// Capture windows that are not focused (default: false)
+    #[arg(long, default_value_t = false)]
+    pub capture_unfocused_windows: bool,
+
     #[command(subcommand)]
     pub command: Option<Command>,
 
@@ -283,6 +283,9 @@ pub enum PipeCommand {
         /// Output format
         #[arg(short, long, value_enum, default_value_t = OutputFormat::Text)]
         output: OutputFormat,
+        /// Server port
+        #[arg(short = 'p', long, default_value_t = 3030)]
+        port: u16,
     },
     /// Download a new pipe
     Download {
@@ -291,6 +294,9 @@ pub enum PipeCommand {
         /// Output format
         #[arg(short, long, value_enum, default_value_t = OutputFormat::Text)]
         output: OutputFormat,
+        /// Server port
+        #[arg(short = 'p', long, default_value_t = 3030)]
+        port: u16,
     },
     /// Get info for a specific pipe
     Info {
@@ -299,16 +305,25 @@ pub enum PipeCommand {
         /// Output format
         #[arg(short, long, value_enum, default_value_t = OutputFormat::Text)]
         output: OutputFormat,
+        /// Server port
+        #[arg(short = 'p', long, default_value_t = 3030)]
+        port: u16,
     },
     /// Enable a pipe
     Enable {
         /// ID of the pipe to enable
         id: String,
+        /// Server port
+        #[arg(short = 'p', long, default_value_t = 3030)]
+        port: u16,
     },
     /// Disable a pipe
     Disable {
         /// ID of the pipe to disable
         id: String,
+        /// Server port
+        #[arg(short = 'p', long, default_value_t = 3030)]
+        port: u16,
     },
     /// Update pipe configuration
     Update {
@@ -316,12 +331,18 @@ pub enum PipeCommand {
         id: String,
         /// New configuration as a JSON string
         config: String,
+        /// Server port
+        #[arg(short = 'p', long, default_value_t = 3030)]
+        port: u16,
     },
     /// Purge all pipes
     Purge {
         /// Automatically confirm purge without prompting
         #[arg(short = 'y', long)]
         yes: bool,
+        /// Server port
+        #[arg(short = 'p', long, default_value_t = 3030)]
+        port: u16,
     },
     /// Delete a pipe
     Delete {
@@ -330,6 +351,9 @@ pub enum PipeCommand {
         /// Automatically confirm deletion without prompting
         #[arg(short = 'y', long)]
         yes: bool,
+        /// Server port
+        #[arg(short = 'p', long, default_value_t = 3030)]
+        port: u16,
     },
 }
 

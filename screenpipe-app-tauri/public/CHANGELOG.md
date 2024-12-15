@@ -1,5 +1,10 @@
-### **Fixes:**
-- **Fixed ffmpeg issue on macOS Tauri app:** Resolved a bug causing issues with ffmpeg on macOS Tauri app for smoother functionality.
+### **Improvements:**
+- **Improved pipe download user experience (UX):** Enhancements made to the pipe download process for a better user experience.
 
-#### **Full Changelog:** [19498..fb8e2](https://github.com/mediar-ai/screenpipe/compare/19498..fb8e2)
+### **Fixes:**
+- **Fixed self-hosted builds:** Addressed issues with self-hosted builds for smoother deployment process.
+- **Fixed compatibility with node/browser:** Updated screenpipe-js to be compatible with both node and browsers.
+- **Fixed search functionality:** Resolved issues with the search feature for more accurate results.
+
+#### **Full Changelog:** [cabec..d24be](https://github.com/mediar-ai/screenpipe/compare/cabec..d24be)
 
