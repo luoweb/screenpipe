@@ -185,8 +185,8 @@ jobs:
           path: screenpipe-*.zip
 
   build-linux:
-    # runs-on: ubuntu-latest
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
+    # runs-on: ubuntu-21.04
     strategy:
       matrix:
         target: [x86_64-unknown-linux-gnu]
@@ -218,6 +218,7 @@ jobs:
             libxcb-shape0-dev \
             libxcb-xfixes0-dev \
             libtesseract-dev \
+            libsdl2-dev \
             libssl-dev \
             cmake \
             build-essential \
