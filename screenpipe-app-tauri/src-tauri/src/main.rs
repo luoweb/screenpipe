@@ -54,7 +54,7 @@ pub use sidecar::spawn_screenpipe;
 pub use permissions::do_permissions_check;
 pub use permissions::open_permission_settings;
 pub use permissions::request_permission;
-
+use tauri_plugin_deep_link::DeepLinkExt;
 pub struct SidecarState(Arc<tokio::sync::Mutex<Option<SidecarManager>>>);
 
 async fn get_pipe_port(pipe_id: &str) -> anyhow::Result<u16> {
@@ -89,7 +89,7 @@ fn get_data_dir(app: &tauri::AppHandle) -> anyhow::Result<PathBuf> {
     let store = StoreBuilder::new(app, path).build();
 
     let default_path = app.path().home_dir().unwrap().join(".screenpipe");
-    let data_dir = store
+    let data_dir = store?
         .get("dataDir")
         .and_then(|v| v.as_str().map(String::from))
         .unwrap_or(String::from("default"));
@@ -164,6 +164,7 @@ async fn main() {
         }))
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+        .plugin(tauri_plugin_deep_link::init())
         .manage(sidecar_state)
         .invoke_handler(tauri::generate_handler![
             spawn_screenpipe,
@@ -347,7 +348,9 @@ async fn main() {
             }
 
             // Store setup and analytics initialization
-            let store = StoreBuilder::new(app.handle(), path.clone()).build();
+            let store = StoreBuilder::new(app.handle(), path.clone())
+                .build()
+                .unwrap();
 
             if store.keys().len() == 0 {
                 store.set("analyticsEnabled".to_string(), Value::Bool(true));
@@ -489,6 +492,21 @@ async fn main() {
                         }
                     }
                 });
+            }
+
+            #[cfg(any(target_os = "linux", all(debug_assertions, windows)))]
+            app.deep_link().register_all()?;
+
+            app.deep_link().on_open_url(move |event| {
+                let urls: Vec<_> = event.urls().into_iter().collect();
+                info!("deep link URLs: {:?}", urls);
+            });
+            // Register URL scheme on Windows/Linux
+            #[cfg(any(target_os = "linux"))]
+            {
+                if let Err(err) = app.handle().deep_link().register() {
+                    error!("Failed to register deep link protocol: {}", err);
+                }
             }
 
             Ok(())
