@@ -29,10 +29,8 @@ export const VideoComponent = memo(function VideoComponent({
       .trim()
       .replace(/\//g, "/");
   }, []);
-
   const renderFileLink = () => (
-    // TODO button open link
-    <div className="mt-2 text-center text-xs text-gray-500">
+    <div className="mt-2 text-center text-xs text-gray-500 truncate px-2" title={filePath}>
       {customDescription || filePath}
     </div>
   );

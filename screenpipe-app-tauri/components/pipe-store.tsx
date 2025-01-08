@@ -62,6 +62,15 @@ interface CorePipe {
 
 const corePipes: CorePipe[] = [
   {
+    id: "memories",
+    name: "memories gallery",
+    description:
+      "google-photo like gallery of your screen recordings memories, with AI-powered insights and timeline visualization",
+    url: "https://github.com/mediar-ai/screenpipe/tree/main/pipes/memories",
+    credits: 0,
+    paid: false,
+  },
+  {
     id: "data-table",
     name: "data table",
     description:
@@ -131,33 +140,6 @@ const corePipes: CorePipe[] = [
     url: "https://github.com/mediar-ai/screenpipe/tree/main/pipes/pipe-for-loom",
     credits: 10,
     paid: true,
-  },
-  {
-    id: "pipe-obsidian-time-logs",
-    name: "obsidian time logger",
-    description:
-      "continuously write logs of your days in an obsidian table using ollama+llama3.2",
-    url: "https://github.com/mediar-ai/screenpipe/tree/main/pipes/pipe-obsidian-time-logs",
-    credits: 0,
-    paid: false,
-  },
-  {
-    id: "pipe-post-questions-on-reddit",
-    name: "reddit question bot",
-    description:
-      "get more followers, promote your content/product while being useful, without doing any work",
-    url: "https://github.com/mediar-ai/screenpipe/tree/main/pipes/pipe-post-questions-on-reddit",
-    credits: 0,
-    paid: false,
-  },
-  {
-    id: "pipe-notion-table-logs",
-    name: "notion time logger",
-    description:
-      "continuously write logs of your days in a notion table using ollama",
-    url: "https://github.com/mediar-ai/screenpipe/tree/main/pipes/pipe-notion-table-logs",
-    credits: 0,
-    paid: false,
   },
   {
     id: "pipe-simple-nextjs",
@@ -250,6 +232,7 @@ const PipeStore: React.FC = () => {
   const { getDataDir } = useSettings();
   const { user, refreshUser } = useUser();
   const [showCreditDialog, setShowCreditDialog] = useState(false);
+  const [isEnabling, setIsEnabling] = useState(false);
 
   useEffect(() => {
     fetchInstalledPipes();
@@ -257,6 +240,10 @@ const PipeStore: React.FC = () => {
 
   const handleResetAllPipes = async () => {
     try {
+      toast({
+        title: "resetting pipes",
+        description: "this will delete all your pipes and reinstall them.",
+      });
       const cmd = Command.sidecar("screenpipe", ["pipe", "purge", "-y"]);
       await cmd.execute();
       await new Promise((resolve) => setTimeout(resolve, 1000));
@@ -413,6 +400,11 @@ const PipeStore: React.FC = () => {
 
   const handleToggleEnabled = async (pipe: Pipe) => {
     try {
+      // Set loading state when enabling
+      if (!pipe.enabled) {
+        setIsEnabling(true);
+      }
+
       const corePipe = corePipes.find((cp) => cp.id === pipe.id);
       console.log("attempting to toggle pipe:", {
         pipeId: pipe.id,
@@ -512,7 +504,8 @@ const PipeStore: React.FC = () => {
         throw new Error(data.error);
       }
 
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      // Wait for pipe to initialize
+      await new Promise((resolve) => setTimeout(resolve, 3000));
       const freshPipes = await fetchInstalledPipes();
       await new Promise((resolve) => setTimeout(resolve, 1000));
 
@@ -534,6 +527,9 @@ const PipeStore: React.FC = () => {
         description: "please try again or check the logs for more information.",
         variant: "destructive",
       });
+    } finally {
+      // Reset loading state
+      setIsEnabling(false);
     }
   };
 
@@ -983,9 +979,10 @@ const PipeStore: React.FC = () => {
                             `http://localhost:${selectedPipe.config!.port}`
                           )
                         }
+                        disabled={isEnabling}
                       >
                         <ExternalLink className="mr-2 h-3.5 w-3.5" />
-                        open in browser
+                        {isEnabling ? "initializing..." : "open in browser"}
                       </Button>
                       <Button
                         variant="default"
@@ -1004,17 +1001,12 @@ const PipeStore: React.FC = () => {
                             });
                           }
                         }}
+                        disabled={isEnabling}
                       >
                         <Puzzle className="mr-2 h-3.5 w-3.5" />
-                        open as app
+                        {isEnabling ? "initializing..." : "open as app"}
                       </Button>
                     </div>
-                  </div>
-                  <div className="rounded-lg border overflow-hidden bg-background">
-                    <iframe
-                      src={`http://localhost:${selectedPipe.config.port}`}
-                      className="w-full h-[600px] border-0"
-                    />
                   </div>
                 </div>
               )}
@@ -1263,22 +1255,30 @@ const PipeStore: React.FC = () => {
                           <>
                             {pipes.some((p) => p.id === pipe.id) ? (
                               <>
-                                {pipes.find(p => p.id === pipe.id)?.config?.port && pipes.find(p => p.id === pipe.id)?.enabled ? (
+                                {pipes.find((p) => p.id === pipe.id)?.config
+                                  ?.port &&
+                                pipes.find((p) => p.id === pipe.id)?.enabled ? (
                                   <Button
                                     size="icon"
                                     variant="outline"
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      const installedPipe = pipes.find(p => p.id === pipe.id);
+                                      const installedPipe = pipes.find(
+                                        (p) => p.id === pipe.id
+                                      );
                                       if (installedPipe?.config?.port) {
                                         invoke("open_pipe_window", {
                                           port: installedPipe.config.port,
                                           title: installedPipe.id,
-                                        }).catch(err => {
-                                          console.error("failed to open pipe window:", err);
+                                        }).catch((err) => {
+                                          console.error(
+                                            "failed to open pipe window:",
+                                            err
+                                          );
                                           toast({
                                             title: "error opening pipe window",
-                                            description: "please try again or check the logs",
+                                            description:
+                                              "please try again or check the logs",
                                             variant: "destructive",
                                           });
                                         });
