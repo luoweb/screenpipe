@@ -7,22 +7,22 @@ try {
     if (-not $latestRelease) {
         throw "no releases found"
     }
-    
+
     # Find the Windows asset
     $asset = $latestRelease.assets | Where-Object { $_.name -like "*-x86_64-pc-windows-msvc.zip" } | Select-Object -First 1
     if (-not $asset) {
         throw "no Windows release found in version $($latestRelease.tag_name)"
     }
-    
+
     $url = $asset.browser_download_url
-    
+
     $installDir = "$env:USERPROFILE\screenpipe"
     $tempZip = "$env:TEMP\screenpipe.zip"
 
     # Download and extract
     Write-Host "downloading latest version ($($latestRelease.tag_name)) from $url..."
     Invoke-WebRequest -Uri $url -OutFile $tempZip
-    
+
     # Create install directory if it doesn't exist
     if (!(Test-Path $installDir)) {
         New-Item -ItemType Directory -Path $installDir | Out-Null
@@ -51,28 +51,19 @@ try {
     Write-Host "installing bun..."
     powershell -c "irm bun.sh/install.ps1|iex"
 
-    Write-Host @"
+    # Install Visual Studio Redistributables to avoid any ort issues
+    Set-ExecutionPolicy Bypass -Scope Process -Force
+    [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
+    iex ((New-Object System.Net.WebClient).DownloadString('https://vcredist.com/install.ps1'))
 
-███████╗ ██████╗██████╗ ███████╗███████╗███╗   ██╗██████╗ ██╗██████╗ ███████╗
-██╔════╝██╔════╝██╔══██╗██╔════╝██╔════╝████╗  ██║██╔══██╗██║██╔══██╗██╔════╝
-███████╗██║     ██████╔╝█████╗  █████╗  ██╔██╗ ██║█████╔╝██║██████╔╝█████╗  
-╚════██║██║     ██╔══██╗██╔══╝  ██╔══╝  ██║╚██╗██║██╔═══╝ ██║██╔═══╝ ██╔══╝  
-███████║╚██████╗██║  ██║███████╗███████╗██║ ╚████║██║     ██║██║     ███████╗
-╚══════╝ ╚═════╝╚═╝  ╚═╝╚══════╝╚══════╝╚═╝  ╚═══╝╚═╝     ╚═╝╚═╝     ╚══════╝
-"@
-
-    Write-Host "installation complete! 🚀"
+    Write-Host "Installation Complete"
+    Write-Host ""
     Write-Host "to get started:"
     Write-Host "1. restart your terminal"
     Write-Host "2. run: screenpipe"
     Write-Host ""
-    Write-Host "╭──────────────────────────────────────────╮"
-    Write-Host "│  join our discord:                       │"
-    Write-Host "│  --> https://discord.gg/dU9EBuw7Uq       │"
-    Write-Host "│                                          │"
-    Write-Host "│  check the docs:                         │"
-    Write-Host "│  --> https://docs.screenpi.pe            │"
-    Write-Host "╰──────────────────────────────────────────╯"
+    Write-Host "join our discord: https://discord.gg/dU9EBuw7Uq"
+    Write-Host "check the docs: https://docs.screenpi.pe"
 
     try {
         $postHogData = @{

@@ -1,5 +1,7 @@
 {
-  "$schema": "../node_modules/@tauri-apps/cli/schema.json",
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "screenpipe",
+  "identifier": "screenpi.pe",
   "build": {
     "beforeDevCommand": "bun run dev",
     "beforeBuildCommand": "bun run build",
@@ -30,40 +32,10 @@
       "icons/screenpipe-logo-tray-failed.png",
       "icons/screenpipe-logo-tray-black.png"
     ],
-    "longDescription": "",
     "resources": [
       "assets/*"
-    ],
-    "shortDescription": "",
-    "fileAssociations": [
-      {
-        "description": "Video files",
-        "ext": [
-          "mp4",
-          "mkv",
-          "avi",
-          "mov",
-          "wmv",
-          "webm"
-        ]
-      },
-      {
-        "description": "Audio files",
-        "ext": [
-          "mp3",
-          "wav",
-          "aac",
-          "flac",
-          "oga",
-          "ogg",
-          "opic",
-          "opus"
-        ]
-      }
     ]
   },
-  "productName": "screenpipe",
-  "identifier": "screenpi.pe",
   "plugins": {
     "updater": {
       "active": true,
@@ -75,17 +47,58 @@
     },
     "deep-link": {
       "desktop": {
-        "schemes": ["screenpipe"]
+        "schemes": [
+          "screenpipe"
+        ]
       },
       "mobile": [
         {
           "host": "screenpi.pe",
-          "pathPrefix": ["/auth"]
+          "pathPrefix": [
+            "/auth"
+          ]
+        },
+        {
+          "host": "screenpi.pe",
+          "pathPrefix": [
+            "/stripe-connect"
+          ]
+        },
+        {
+          "host": "screenpi.pe",
+          "pathPrefix": [
+            "/purchase-successful"
+          ]
+        },
+        {
+          "host": "screenpi.pe",
+          "pathPrefix": [
+            "/settings"
+          ]
+        },
+        {
+          "host": "screenpi.pe",
+          "pathPrefix": [
+            "/changelog"
+          ]
+        },
+        {
+          "host": "screenpi.pe",
+          "pathPrefix": [
+            "/onboarding"
+          ]
+        },
+        {
+          "host": "screenpi.pe",
+          "pathPrefix": [
+            "/status"
+          ]
         }
       ]
     }
   },
   "app": {
+    "withGlobalTauri": true,
     "trayIcon": {
       "id": "screenpipe_main",
       "iconPath": "icons/screenpipe-logo-tray-black.png",
@@ -96,8 +109,6 @@
         "title": "screenpipe",
         "width": 1200,
         "height": 850,
-        "minWidth": 1200,
-        "minHeight": 850,
         "resizable": true
       }
     ],

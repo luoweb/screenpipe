@@ -1,9 +1,15 @@
 {
     "bundle": {
+        "windows": {
+            "nsis": {
+                "headerImage": "assets/nsis-header.bmp",
+                "sidebarImage": "assets/nsis-sidebar.bmp",
+                "installerIcon": "icons/icon.ico"
+            }
+        },
         "externalBin": [
             "screenpipe",
-            "bun",
-            "ollama"
+            "bun"
         ],
         "targets": [
             "nsis"
@@ -16,8 +22,9 @@
             "onnxruntime*\\lib\\onnxruntime.dll": "./",
             "onnxruntime*\\lib\\onnxruntime_providers_cuda.dll": "./",
             "onnxruntime*\\lib\\onnxruntime_providers_shared.dll": "./",
-            "lib\\ollama\\*": "./",
-            "mkl\\*.dll": "./"
+            "mkl\\*.dll": "./",
+            "vcredist\\*.dll": "./",
+            "assets/*": "./assets/"
         }
     }
 }

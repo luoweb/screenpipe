@@ -1,18 +1,16 @@
 use crate::get_store;
-use crate::SidecarState;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
-use tauri::async_runtime::JoinHandle;
 use tauri::Emitter;
 use tauri::{Manager, State};
 use tauri_plugin_shell::process::{CommandChild, CommandEvent};
 use tauri_plugin_shell::ShellExt;
 use tauri_plugin_store::Store;
 use tokio::sync::Mutex;
-use tokio::time::sleep;
 use tracing::{debug, error, info};
+
+pub struct SidecarState(pub Arc<tokio::sync::Mutex<Option<SidecarManager>>>);
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct UserCredits {
@@ -38,6 +36,8 @@ pub struct User {
     pub clerk_id: Option<String>,
     #[serde(default)]
     pub credits: Option<UserCredits>,
+    #[serde(rename = "user.cloud_subscribed", default)]
+    pub cloud_subscribed: Option<bool>,
 }
 
 impl User {
@@ -70,58 +70,72 @@ impl User {
                     .get("user.credits.created_at")
                     .and_then(|v| v.as_str().map(String::from)),
             }),
+            cloud_subscribed: store.get("user.cloud_subscribed").and_then(|v| v.as_bool()),
         }
     }
 }
 
 #[tauri::command]
-pub async fn kill_all_sreenpipes(
+pub async fn stop_screenpipe(
     state: State<'_, SidecarState>,
     _app: tauri::AppHandle,
 ) -> Result<(), String> {
     debug!("Killing screenpipe");
 
-    let mut manager = state.0.lock().await;
-    if let Some(manager) = manager.as_mut() {
-        if let Some(child) = manager.child.take() {
-            if let Err(e) = child.kill() {
-                error!("Failed to kill child process: {}", e);
+    #[cfg(not(target_os = "windows"))]
+    {
+        let mut manager = state.0.lock().await;
+        if let Some(manager) = manager.as_mut() {
+            if let Some(child) = manager.child.take() {
+                if let Err(e) = child.kill() {
+                    error!("Failed to kill child process: {}", e);
+                }
             }
         }
     }
 
-    // Hard kill the sidecar
-    let kill_result = async {
-        #[cfg(not(target_os = "windows"))]
+    #[cfg(not(target_os = "windows"))]
+    {
+        match tokio::process::Command::new("pkill")
+            .arg("-9")
+            .arg("-f")
+            .arg("screenpipe")
+            .output()
+            .await
         {
-            tokio::process::Command::new("pkill")
-                .arg("-f")
-                .arg("screenpipe")
-                .output()
-                .await
-        }
-        #[cfg(target_os = "windows")]
-        {
-            use std::os::windows::process::CommandExt;
-
-            const CREATE_NO_WINDOW: u32 = 0x08000000;
-            tokio::process::Command::new("taskkill")
-                .args(&["/F", "/T", "/IM", "screenpipe.exe"])
-                .creation_flags(CREATE_NO_WINDOW)
-                .output()
-                .await
+            Ok(_) => {
+                debug!("Successfully killed screenpipe processes");
+                Ok(())
+            }
+            Err(e) => {
+                error!("Failed to kill screenpipe processes: {}", e);
+                Err(format!("Failed to kill screenpipe processes: {}", e))
+            }
         }
     }
-    .await;
 
-    match kill_result {
-        Ok(_) => {
-            debug!("Successfully killed screenpipe processes");
-            Ok(())
-        }
-        Err(e) => {
-            error!("Failed to kill screenpipe processes: {}", e);
-            Err(format!("Failed to kill screenpipe processes: {}", e))
+    #[cfg(target_os = "windows")]
+    {
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+        match tokio::process::Command::new("powershell")
+            .arg("-NoProfile")
+            .arg("-WindowStyle")
+            .arg("hidden")
+            .arg("-Command")
+            .arg(r#"taskkill.exe /F /T /IM screenpipe.exe"#)
+            .creation_flags(CREATE_NO_WINDOW)
+            .output()
+            .await
+        {
+            Ok(_) => {
+                debug!("Successfully killed screenpipe processes");
+                Ok(())
+            }
+            Err(e) => {
+                error!("Failed to kill screenpipe processes: {}", e);
+                Err(format!("Failed to kill screenpipe processes: {}", e))
+            }
         }
     }
 }
@@ -130,20 +144,21 @@ pub async fn kill_all_sreenpipes(
 pub async fn spawn_screenpipe(
     state: tauri::State<'_, SidecarState>,
     app: tauri::AppHandle,
+    override_args: Option<Vec<String>>,
 ) -> Result<(), String> {
     let mut manager = state.0.lock().await;
     if manager.is_none() {
         *manager = Some(SidecarManager::new());
     }
     if let Some(manager) = manager.as_mut() {
-        manager.spawn(&app).await
+        manager.spawn(&app, override_args).await
     } else {
         debug!("Sidecar already running");
         Ok(())
     }
 }
 
-fn spawn_sidecar(app: &tauri::AppHandle) -> Result<CommandChild, String> {
+fn spawn_sidecar(app: &tauri::AppHandle, override_args: Option<Vec<String>>) -> Result<CommandChild, String> {
     let store = get_store(app, None).unwrap();
 
     let audio_transcription_engine = store
@@ -245,6 +260,21 @@ fn spawn_sidecar(app: &tauri::AppHandle) -> Result<CommandChild, String> {
         .and_then(|v| v.as_str().map(String::from))
         .unwrap_or(String::from("default"));
 
+    let enable_realtime_audio_transcription = store
+        .get("enableRealtimeAudioTranscription")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+
+    let enable_realtime_vision = store
+        .get("enableRealtimeVision")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+
+    let _use_all_monitors = store
+        .get("useAllMonitors")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+
     let user = User::from_store(&store);
 
     println!("user: {:?}", user);
@@ -288,7 +318,7 @@ fn spawn_sidecar(app: &tauri::AppHandle) -> Result<CommandChild, String> {
         }
     }
 
-    if deepgram_api_key != "default" {
+    if deepgram_api_key != "default" && deepgram_api_key != "" {
         args.push("--deepgram-api-key");
         let key = deepgram_api_key.as_str();
         args.push(key);
@@ -357,12 +387,35 @@ fn spawn_sidecar(app: &tauri::AppHandle) -> Result<CommandChild, String> {
         args.push("--enable-ui-monitoring");
     }
 
-    if data_dir != "default" && data_dir != "" {
+    if data_dir != "default" && !data_dir.is_empty() {
         args.push("--data-dir");
         args.push(data_dir.as_str());
     }
 
+    if enable_realtime_audio_transcription {
+        args.push("--enable-realtime-audio-transcription");
+    }
+
+    if enable_realtime_vision {
+        args.push("--enable-realtime-vision");
+    }
+
+    // if use_all_monitors {
+    //     args.push("--use-all-monitors");
+    // }
+
+    let disable_vision = store
+        .get("disableVision")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+
+    if disable_vision {
+        args.push("--disable-vision");
+    }
+
     // args.push("--debug");
+
+    let override_args_as_vec = override_args.unwrap_or_default();
 
     if cfg!(windows) {
         let mut c = app.shell().sidecar("screenpipe").unwrap();
@@ -371,17 +424,28 @@ fn spawn_sidecar(app: &tauri::AppHandle) -> Result<CommandChild, String> {
         }
 
         // if a user with credits is provided, add the AI proxy env var api url for deepgram as env var https://ai-proxy.i-f9f.workers.dev/v1/listen
-        if user.credits.is_some() {
+        if user.cloud_subscribed.is_some()
+            && (deepgram_api_key == "default" || deepgram_api_key == "")
+        {
             c = c.env(
                 "DEEPGRAM_API_URL",
                 "https://ai-proxy.i-f9f.workers.dev/v1/listen",
             );
+            c = c.env("DEEPGRAM_WEBSOCKET_URL", "wss://ai-proxy.i-f9f.workers.dev");
             // Add token if screenpipe-cloud is selected and user has a token
-            if user.token.is_some() {
-                c = c.env("CUSTOM_DEEPGRAM_API_TOKEN", user.token.as_ref().unwrap());
+            if user.id.is_some() {
+                c = c.env("CUSTOM_DEEPGRAM_API_TOKEN", user.id.as_ref().unwrap());
+                args.push("--deepgram-api-key");
+                args.push(user.id.as_ref().unwrap());
             }
         }
 
+        c = c.env("SENTRY_RELEASE_NAME_APPEND", "tauri");
+
+        // only supports --enable-realtime-vision for now, avoid adding if already present
+        if !args.contains(&"--enable-realtime-vision") && override_args_as_vec.contains(&"--enable-realtime-vision".to_string()) {
+            args.extend(override_args_as_vec.iter().map(|s| s.as_str()));
+        }
         let c = c.args(&args);
 
         let (_, child) = c.spawn().map_err(|e| {
@@ -401,17 +465,31 @@ fn spawn_sidecar(app: &tauri::AppHandle) -> Result<CommandChild, String> {
     }
 
     // if a user with credits is provided, add the AI proxy env var api url for deepgram as env var https://ai-proxy.i-f9f.workers.dev/v1/listen
-    if user.credits.is_some() {
+    if user.cloud_subscribed.is_some() && (deepgram_api_key == "default" || deepgram_api_key == "")
+    {
+        info!(
+            "Adding AI proxy env vars for deepgram: {:?}",
+            user.id.as_ref().unwrap()
+        );
         c = c.env(
             "DEEPGRAM_API_URL",
             "https://ai-proxy.i-f9f.workers.dev/v1/listen",
         );
+        c = c.env("DEEPGRAM_WEBSOCKET_URL", "wss://ai-proxy.i-f9f.workers.dev");
         // Add token if screenpipe-cloud is selected and user has a token
-        if user.token.is_some() {
-            c = c.env("CUSTOM_DEEPGRAM_API_TOKEN", user.token.as_ref().unwrap());
+        if user.id.is_some() {
+            c = c.env("CUSTOM_DEEPGRAM_API_TOKEN", user.id.as_ref().unwrap());
+            args.push("--deepgram-api-key");
+            args.push(user.id.as_ref().unwrap());
         }
     }
 
+    c = c.env("SENTRY_RELEASE_NAME_APPEND", "tauri");
+
+    // only supports --enable-realtime-vision for now, avoid adding if already present
+    if !args.contains(&"--enable-realtime-vision") && override_args_as_vec.contains(&"--enable-realtime-vision".to_string()) {
+        args.extend(override_args_as_vec.iter().map(|s| s.as_str()));
+    }
     let c = c.args(&args);
 
     let result = c.spawn();
@@ -449,9 +527,6 @@ fn spawn_sidecar(app: &tauri::AppHandle) -> Result<CommandChild, String> {
 }
 pub struct SidecarManager {
     child: Option<CommandChild>,
-    last_restart: Instant,
-    restart_interval: Arc<Mutex<Duration>>,
-    restart_task: Option<JoinHandle<()>>,
     dev_mode: Arc<Mutex<bool>>,
 }
 
@@ -459,65 +534,24 @@ impl SidecarManager {
     pub fn new() -> Self {
         Self {
             child: None,
-            last_restart: Instant::now(),
-            restart_interval: Arc::new(Mutex::new(Duration::from_secs(0))),
-            restart_task: None,
             dev_mode: Arc::new(Mutex::new(false)),
         }
     }
 
-    pub async fn spawn(&mut self, app: &tauri::AppHandle) -> Result<(), String> {
+    pub async fn spawn(&mut self, app: &tauri::AppHandle, override_args: Option<Vec<String>>) -> Result<(), String> {
+        info!("Spawning sidecar with override args: {:?}", override_args);
         // Update settings from store
         self.update_settings(app).await?;
 
         // Spawn the sidecar
-        let child = spawn_sidecar(app)?;
+        let child = spawn_sidecar(app, override_args)?;
         self.child = Some(child);
-        self.last_restart = Instant::now();
-        debug!("last_restart: {:?}", self.last_restart);
-
-        // kill previous task if any
-        if let Some(task) = self.restart_task.take() {
-            task.abort();
-        }
-
-        let restart_interval = self.restart_interval.clone();
-        // Add this function outside the SidecarManager impl
-        async fn check_and_restart_sidecar(app_handle: &tauri::AppHandle) -> Result<(), String> {
-            let state = app_handle.state::<SidecarState>();
-            let mut manager = state.0.lock().await;
-            if let Some(manager) = manager.as_mut() {
-                manager.check_and_restart(app_handle).await
-            } else {
-                Ok(())
-            }
-        }
-
-        // In the spawn method
-        let app_handle = app.app_handle().clone();
-        self.restart_task = Some(tauri::async_runtime::spawn(async move {
-            loop {
-                let interval = *restart_interval.lock().await;
-                debug!("interval: {}", interval.as_secs());
-                if let Err(e) = check_and_restart_sidecar(&app_handle).await {
-                    error!("Failed to check and restart sidecar: {}", e);
-                }
-                sleep(Duration::from_secs(60)).await;
-            }
-        }));
 
         Ok(())
     }
 
     async fn update_settings(&mut self, app: &tauri::AppHandle) -> Result<(), String> {
         let store = get_store(app, None).unwrap();
-
-        let restart_interval = store
-            .get("restartInterval")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(0);
-
-        debug!("restart_interval: {}", restart_interval);
 
         let dev_mode = store
             .get("devMode")
@@ -526,27 +560,8 @@ impl SidecarManager {
 
         debug!("dev_mode: {}", dev_mode);
 
-        *self.restart_interval.lock().await = Duration::from_secs(restart_interval * 60);
         *self.dev_mode.lock().await = dev_mode;
 
-        Ok(())
-    }
-
-    pub async fn check_and_restart(&mut self, app: &tauri::AppHandle) -> Result<(), String> {
-        let interval = *self.restart_interval.lock().await;
-        let dev_mode = *self.dev_mode.lock().await;
-        debug!("interval: {}", interval.as_secs());
-        debug!("last_restart: {:?}", self.last_restart);
-        debug!("elapsed: {:?}", self.last_restart.elapsed());
-        if interval.as_secs() > 0 && self.last_restart.elapsed() >= interval && !dev_mode {
-            debug!("Restarting sidecar due to restart interval");
-            if let Some(child) = self.child.take() {
-                let _ = child.kill();
-            }
-            let child = spawn_sidecar(app)?;
-            self.child = Some(child);
-            self.last_restart = Instant::now();
-        }
         Ok(())
     }
 }
